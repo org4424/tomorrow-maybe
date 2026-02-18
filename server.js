@@ -2,76 +2,96 @@ const express = require("express");
 const path = require("path");
 
 const app = express();
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
-
 const PORT = process.env.PORT || 3000;
 
-// ================= נתונים =================
-const SLOT_MINUTES = 30;
-const bookings = {}; // { date: [times] }
+app.use(express.json());
+app.use(express.static("public"));
 
+/**
+ * יצירת סלוטים כל חצי שעה
+ */
 function generateSlots(start, end) {
   const slots = [];
   let [h, m] = start.split(":").map(Number);
-  const [eh, em] = end.split(":").map(Number);
+  const [endH, endM] = end.split(":").map(Number);
 
-  while (h < eh || (h === eh && m <= em)) {
+  while (h < endH || (h === endH && m <= endM)) {
     slots.push(
       `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
     );
-    m += SLOT_MINUTES;
-    if (m >= 60) {
-      h++;
+    m += 30;
+    if (m === 60) {
       m = 0;
+      h++;
     }
   }
   return slots;
 }
 
-// ================= API =================
-app.get("/api/available", (req, res) => {
-  const { date } = req.query;
-  if (!date) return res.json([]);
-
-  const day = new Date(date).getDay(); // 0=א, 5=ו, 6=ש
-  let slots = [];
+/**
+ * שעות לפי יום
+ */
+function getSlotsByDate(dateStr) {
+  const day = new Date(dateStr).getDay();
+  // 0 = ראשון, 5 = שישי, 6 = שבת
 
   if (day === 6) {
-    return res.json([]); // שבת
+    return []; // שבת – אין שעות
   }
 
   if (day === 5) {
-    slots = generateSlots("12:00", "13:30"); // שישי
-  } else {
-    slots = generateSlots("16:00", "20:00"); // א׳–ה׳
+    // שישי
+    return generateSlots("12:00", "13:30");
   }
 
-  const taken = bookings[date] || [];
-  res.json(slots.filter(s => !taken.includes(s)));
+  // כל שאר הימים
+  return [
+    "16:00",
+    "16:30",
+    "17:00",
+    "17:30",
+    "18:00",
+    "18:30",
+    "19:00",
+    "19:30",
+  ];
+}
+
+/**
+ * API – שעות פנויות
+ */
+app.get("/api/available", (req, res) => {
+  const { date } = req.query;
+  if (!date) {
+    return res.json([]);
+  }
+
+  const slots = getSlotsByDate(date);
+  res.json(slots);
 });
 
+/**
+ * API – קביעת תור (דמה)
+ */
 app.post("/api/book", (req, res) => {
   const { username, date, time } = req.body;
+
   if (!username || !date || !time) {
-    return res.status(400).json({ message: "נתונים חסרים" });
+    return res.status(400).json({ message: "חסר מידע" });
   }
 
-  bookings[date] = bookings[date] || [];
-  if (bookings[date].includes(time)) {
-    return res.status(409).json({ message: "השעה תפוסה" });
-  }
-
-  bookings[date].push(time);
-  res.json({ message: "התור נקבע בהצלחה" });
+  res.json({
+    message: `התור נקבע ל־${username} ב־${date} בשעה ${time}`,
+  });
 });
 
-// ================= אתר =================
+/**
+ * דף ראשי
+ */
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// ================= הפעלה =================
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
