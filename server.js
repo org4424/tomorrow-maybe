@@ -3,22 +3,24 @@ const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 
 const app = express();
-const PORT = 3000;
-
-console.log("=== TOMORROW MAYBE SERVER JS LOADED ===");
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-/* הגדרות */
+// =====================
+// הגדרות קבועות
+// =====================
+const BARBER = "יובל";
 const ALLOWED_USERS = ["אור", "אלון", "נועם", "יהודה"];
 const SLOT_MINUTES = 30;
 const NOTE_TEXT = "בלי נדר";
 
-/* מסד נתונים */
+// =====================
+// חיבור למסד נתונים
+// =====================
 const db = new sqlite3.Database("./appointments.db");
 
-/* טבלה */
 db.run(`
 CREATE TABLE IF NOT EXISTS appointments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,14 +30,36 @@ CREATE TABLE IF NOT EXISTS appointments (
 )
 `);
 
-/* שעות פעילות */
+// =====================
+// שעות פעילות לפי יום
+// =====================
 function getWorkingHours(day) {
-  if (day >= 0 && day <= 4) return { start: "16:00", end: "20:00" };
-  if (day === 5) return { start: "12:00", end: "14:00" };
-  return null;
+  // getDay():
+  // 0 = ראשון
+  // 1 = שני
+  // 2 = שלישי
+  // 3 = רביעי
+  // 4 = חמישי
+  // 5 = שישי
+  // 6 = שבת
+
+  // שבת – סגור
+  if (day === 6) {
+    return null;
+  }
+
+  // שישי – שעות מיוחדות
+  if (day === 5) {
+    return { start: "12:00", end: "13:30" };
+  }
+
+  // ראשון עד חמישי – שעות רגילות
+  return { start: "16:00", end: "20:00" };
 }
 
-/* סלוטים */
+// =====================
+// יצירת סלוטים של 30 דקות
+// =====================
 function generateSlots(start, end) {
   const slots = [];
   let [h, m] = start.split(":").map(Number);
@@ -52,18 +76,17 @@ function generateSlots(start, end) {
   return slots;
 }
 
-/* בדיקת שרת */
-app.get("/__ping", (req, res) => {
-  res.send("SERVER OK");
-});
-
-/* זמנים פנויים */
+// =====================
+// קבלת זמנים פנויים
+// =====================
 app.get("/api/available", (req, res) => {
   const { date } = req.query;
   if (!date) return res.json([]);
 
   const day = new Date(date).getDay();
   const hours = getWorkingHours(day);
+
+  // שבת – אין שעות
   if (!hours) return res.json([]);
 
   const allSlots = generateSlots(hours.start, hours.end);
@@ -79,7 +102,9 @@ app.get("/api/available", (req, res) => {
   );
 });
 
-/* קביעת תור */
+// =====================
+// קביעת תור
+// =====================
 app.post("/api/book", (req, res) => {
   const { username, date, time } = req.body;
 
@@ -91,7 +116,9 @@ app.post("/api/book", (req, res) => {
     "SELECT id FROM appointments WHERE date = ? AND time = ?",
     [date, time],
     (err, row) => {
-      if (row) return res.status(409).json({ error: "slot_taken" });
+      if (row) {
+        return res.status(409).json({ error: "slot_taken" });
+      }
 
       db.run(
         "INSERT INTO appointments (username, date, time) VALUES (?, ?, ?)",
@@ -107,25 +134,38 @@ app.post("/api/book", (req, res) => {
   );
 });
 
-/* ניהול – יובל */
+// =====================
+// מסך ניהול – יובל
+// =====================
 app.get("/api/admin/appointments", (req, res) => {
   db.all(
     "SELECT id, username, date, time FROM appointments ORDER BY date, time",
     (err, rows) => {
-      res.json(rows.map(r => ({ ...r, note: NOTE_TEXT })));
+      res.json(
+        rows.map(r => ({
+          ...r,
+          note: NOTE_TEXT
+        }))
+      );
     }
   );
 });
 
 app.delete("/api/admin/appointments/:id", (req, res) => {
+  const { id } = req.params;
+
   db.run(
     "DELETE FROM appointments WHERE id = ?",
-    [req.params.id],
-    () => res.json({ ok: true })
+    [id],
+    () => {
+      res.json({ ok: true });
+    }
   );
 });
 
-/* הפעלת שרת */
+// =====================
+// הפעלת השרת
+// =====================
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
