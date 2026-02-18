@@ -35,28 +35,16 @@
       color: #fff;
       cursor: pointer;
     }
-    .week {
+    .week, .slots {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 8px;
       margin-top: 10px;
     }
-    .day {
+    .day, .slot {
       background: #1c3d5a;
     }
-    .day.selected {
-      background: #1e90ff;
-    }
-    .slots {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-top: 10px;
-    }
-    .slot {
-      background: #1c3d5a;
-    }
-    .slot.selected {
+    .day.selected, .slot.selected {
       background: #1e90ff;
     }
     .note {
@@ -136,9 +124,14 @@
       d.setDate(today.getDate() + offset);
       offset++;
 
-      if (d.getDay() === 6) continue; // שבת
+      if (d.getDay() === 6) continue; // שבת סגור
 
-      const iso = d.toISOString().split("T")[0];
+      // ✅ יצירת תאריך בלי UTC
+      const iso =
+        d.getFullYear() + "-" +
+        String(d.getMonth() + 1).padStart(2, "0") + "-" +
+        String(d.getDate()).padStart(2, "0");
+
       const label = d.toLocaleDateString("he-IL", {
         weekday: "short",
         day: "numeric"
@@ -167,7 +160,7 @@
     box.innerHTML = "";
     selectedTime = null;
 
-    if (slots.length === 0) {
+    if (!slots || slots.length === 0) {
       box.innerHTML = "<div>אין שעות פנויות</div>";
       return;
     }
