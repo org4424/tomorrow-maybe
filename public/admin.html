@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>מסך ניהול – יובל</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0b1c2d;
+      color: #fff;
+      margin: 0;
+      padding: 16px;
+    }
+    h1 {
+      text-align: center;
+    }
+    .card {
+      background: #132b44;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    button {
+      background: #ff4d4d;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    .note {
+      opacity: 0.8;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>מסך ניהול – יובל</h1>
+<div id="list"></div>
+
+<script>
+  async function loadAppointments() {
+    const res = await fetch("/api/admin/appointments");
+    const data = await res.json();
+
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+
+    if (data.length === 0) {
+      list.innerHTML = "<p style='text-align:center;'>אין תורים</p>";
+      return;
+    }
+
+    data.forEach(a => {
+      const div = document.createElement("div");
+      div.className = "card";
+
+      div.innerHTML = `
+        <div class="row">
+          <div>
+            <strong>${a.username}</strong><br>
+            ${a.date} | ${a.time}<br>
+            <span class="note">בלי נדר</span>
+          </div>
+          <button onclick="removeAppointment(${a.id})">מחק</button>
+        </div>
+      `;
+
+      list.appendChild(div);
+    });
+  }
+
+  async function removeAppointment(id) {
+    if (!confirm("למחוק את התור?")) return;
+
+    await fetch("/api/admin/appointments/" + id, {
+      method: "DELETE"
+    });
+
+    loadAppointments();
+  }
+
+  loadAppointments();
+</script>
+
+</body>
+</html>

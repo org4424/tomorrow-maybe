@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tomorrow maybe</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0b1c2d;
+      color: #fff;
+      margin: 0;
+      padding: 16px;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .card {
+      background: #132b44;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    select, button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+      margin-top: 8px;
+    }
+    button {
+      background: #1e90ff;
+      color: #fff;
+      cursor: pointer;
+    }
+    .week {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .day {
+      background: #1c3d5a;
+    }
+    .day.selected {
+      background: #1e90ff;
+    }
+    .slots {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .slot {
+      background: #1c3d5a;
+    }
+    .slot.selected {
+      background: #1e90ff;
+    }
+    .note {
+      text-align: center;
+      opacity: 0.8;
+      margin-top: 10px;
+    }
+    .message {
+      text-align: center;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>tomorrow maybe</h1>
+<p style="text-align:center;">קביעת תור ליובל – בלי נדר</p>
+
+<!-- בחירת משתמש -->
+<div class="card" id="userCard">
+  <h2>מי אתה?</h2>
+  <select id="username">
+    <option value="">בחר שם</option>
+    <option>אור</option>
+    <option>אלון</option>
+    <option>נועם</option>
+    <option>יהודה</option>
+  </select>
+  <button onclick="saveUser()">המשך</button>
+</div>
+
+<!-- קביעת תור -->
+<div class="card" id="bookingCard" style="display:none;">
+  <h2>בחר יום</h2>
+  <div class="week" id="week"></div>
+
+  <h2>בחר שעה</h2>
+  <div class="slots" id="slots"></div>
+
+  <button onclick="book()">קבע תור</button>
+
+  <div class="note">בלי נדר</div>
+  <div class="message" id="message"></div>
+</div>
+
+<script>
+  const userKey = "tm_user";
+  let selectedDate = null;
+  let selectedTime = null;
+
+  function saveUser() {
+    const user = document.getElementById("username").value;
+    if (!user) {
+      alert("בחר שם");
+      return;
+    }
+    localStorage.setItem(userKey, user);
+
+    document.getElementById("userCard").style.display = "none";
+    document.getElementById("bookingCard").style.display = "block";
+
+    buildWeek();
+  }
+
+  function buildWeek() {
+    const week = document.getElementById("week");
+    week.innerHTML = "";
+
+    const today = new Date();
+    let added = 0;
+    let offset = 0;
+
+    while (added < 6) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + offset);
+      offset++;
+
+      if (d.getDay() === 6) continue; // שבת
+
+      const iso = d.toISOString().split("T")[0];
+      const label = d.toLocaleDateString("he-IL", {
+        weekday: "short",
+        day: "numeric"
+      });
+
+      const btn = document.createElement("button");
+      btn.className = "day";
+      btn.innerText = label;
+      btn.onclick = () => {
+        document.querySelectorAll(".day").forEach(b => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        selectedDate = iso;
+        loadSlots();
+      };
+
+      week.appendChild(btn);
+      added++;
+    }
+  }
+
+  async function loadSlots() {
+    const res = await fetch(`/api/available?date=${selectedDate}`);
+    const slots = await res.json();
+
+    const box = document.getElementById("slots");
+    box.innerHTML = "";
+    selectedTime = null;
+
+    if (slots.length === 0) {
+      box.innerHTML = "<div>אין שעות פנויות</div>";
+      return;
+    }
+
+    slots.forEach(time => {
+      const btn = document.createElement("button");
+      btn.className = "slot";
+      btn.innerText = time;
+      btn.onclick = () => {
+        document.querySelectorAll(".slot").forEach(s => s.classList.remove("selected"));
+        btn.classList.add("selected");
+        selectedTime = time;
+      };
+      box.appendChild(btn);
+    });
+  }
+
+  async function book() {
+    if (!selectedDate || !selectedTime) {
+      alert("בחר יום ושעה");
+      return;
+    }
+
+    const res = await fetch("/api/book", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: localStorage.getItem(userKey),
+        date: selectedDate,
+        time: selectedTime
+      })
+    });
+
+    const data = await res.json();
+    document.getElementById("message").innerText =
+      res.ok ? data.message : "השעה נתפסה, נסה שוב";
+
+    loadSlots();
+  }
+</script>
+
+</body>
+</html>
