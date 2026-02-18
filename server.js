@@ -7,14 +7,11 @@ app.use(express.static("public"));
 
 const PORT = process.env.PORT || 3000;
 
-// הגדרות
+// ===== הגדרות =====
 const SLOT_MINUTES = 30;
+const bookings = {}; // { "YYYY-MM-DD": ["16:00", "16:30"] }
 
-// זיכרון זמני להזמנות
-// מבנה: { "2026-02-20": ["16:00", "16:30"] }
-const bookings = {};
-
-// פונקציה ליצירת סלוטים (כולל שעה אחרונה)
+// יצירת סלוטים
 function generateSlots(start, end) {
   const slots = [];
 
@@ -36,13 +33,12 @@ function generateSlots(start, end) {
   return slots;
 }
 
-// קבלת שעות פנויות
+// ===== שעות פנויות =====
 app.get("/api/available", (req, res) => {
   const { date } = req.query;
   if (!date) return res.json([]);
 
   const day = new Date(date).getDay(); // 0=א, 5=ו, 6=ש
-
   let slots = [];
 
   // שבת – אין שעות
@@ -58,14 +54,13 @@ app.get("/api/available", (req, res) => {
     slots = generateSlots("16:00", "20:00");
   }
 
-  // הסרת שעות תפוסות
   const taken = bookings[date] || [];
-  const available = slots.filter(t => !taken.includes(t));
+  const available = slots.filter(s => !taken.includes(s));
 
   res.json(available);
 });
 
-// הזמנת תור
+// ===== קביעת תור =====
 app.post("/api/book", (req, res) => {
   const { username, date, time } = req.body;
 
@@ -86,12 +81,12 @@ app.post("/api/book", (req, res) => {
   });
 });
 
-// SPA fallback
-app.get("*", (req, res) => {
+// ===== fallback תקין (לא גורם לקריסה) =====
+app.get("/*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// הפעלת שרת
+// ===== הפעלת שרת =====
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
