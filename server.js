@@ -1,100 +1,166 @@
 const express = require("express");
+const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
-/*
-  ימי השבוע לפי JS:
-  0 = Sunday (יום א)
-  1 = Monday
-  2 = Tuesday
-  3 = Wednesday
-  4 = Thursday
-  5 = Friday (יום ו)
-  6 = Saturday (שבת)
-*/
+// =====================
+// הגדרות
+// =====================
+const BARBER = "יובל";
+const ALLOWED_USERS = ["אור", "אלון", "נועם", "יהודה"];
+const SLOT_MINUTES = 30;
+const NOTE_TEXT = "בלי נדר";
 
-function getAvailableHours(dateStr) {
-  const date = new Date(dateStr);
-  const day = date.getDay();
+// =====================
+// מסד נתונים
+// =====================
+const db = new sqlite3.Database("./appointments.db");
 
-  // שבת – אין שעות
+db.run(`
+CREATE TABLE IF NOT EXISTS appointments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL,
+  date TEXT NOT NULL,
+  time TEXT NOT NULL
+)
+`);
+
+// =====================
+// שעות פעילות לפי יום
+// =====================
+function getWorkingHours(day) {
+  // day: 0=ראשון ... 5=שישי ... 6=שבת
+
+  // שבת – סגור
   if (day === 6) {
-    return [];
+    return null;
   }
 
-  // שישי – רק 12:00–13:30
+  // שישי – 12:00 עד 13:30
   if (day === 5) {
-    return ["12:00", "12:30", "13:00", "13:30"];
+    return { start: "12:00", end: "14:00" };
   }
 
-  // א׳–ה׳ – שעות רגילות
-  return [
-    "16:00",
-    "16:30",
-    "17:00",
-    "17:30",
-    "18:00",
-    "18:30",
-    "19:00",
-    "19:30"
-  ];
+  // ראשון עד חמישי – רגיל
+  return { start: "16:00", end: "20:00" };
 }
 
-/* ===== API ===== */
+// =====================
+// יצירת סלוטים
+// =====================
+function generateSlots(start, end) {
+  const slots = [];
+  let [h, m] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
 
-// קבלת שעות לפי תאריך
-app.get("/api/hours", (req, res) => {
+  while (h < eh || (h === eh && m < em)) {
+    slots.push(
+      `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+    );
+    m += SLOT_MINUTES;
+    if (m >= 60) {
+      h++;
+      m = 0;
+    }
+  }
+
+  return slots;
+}
+
+// =====================
+// זמנים פנויים
+// =====================
+app.get("/api/available", (req, res) => {
   const { date } = req.query;
+  if (!date) return res.json([]);
 
-  if (!date) {
-    return res.status(400).json({ error: "date is required" });
+  const day = new Date(date).getDay();
+  const hours = getWorkingHours(day);
+
+  if (!hours) {
+    return res.json([]);
   }
 
-  const hours = getAvailableHours(date);
-  res.json({ hours });
+  const allSlots = generateSlots(hours.start, hours.end);
+
+  db.all(
+    "SELECT time FROM appointments WHERE date = ?",
+    [date],
+    (err, rows) => {
+      const taken = rows.map(r => r.time);
+      const free = allSlots.filter(t => !taken.includes(t));
+      res.json(free);
+    }
+  );
 });
 
+// =====================
 // קביעת תור
-app.post("/api/appointments", (req, res) => {
-  const { date, time, name } = req.body;
+// =====================
+app.post("/api/book", (req, res) => {
+  const { username, date, time } = req.body;
 
-  if (!date || !time || !name) {
-    return res.status(400).json({ error: "missing fields" });
+  if (!ALLOWED_USERS.includes(username)) {
+    return res.status(403).json({ error: "user_not_allowed" });
   }
 
-  const allowedHours = getAvailableHours(date);
+  db.get(
+    "SELECT id FROM appointments WHERE date = ? AND time = ?",
+    [date, time],
+    (err, row) => {
+      if (row) {
+        return res.status(409).json({ error: "slot_taken" });
+      }
 
-  if (!allowedHours.includes(time)) {
-    return res.status(400).json({
-      error: "השעה שנבחרה אינה זמינה ביום זה"
-    });
-  }
-
-  // כרגע בלי DB – רק אישור
-  res.json({
-    success: true,
-    message: `נקבע תור ל־${name} בתאריך ${date} בשעה ${time}`
-  });
+      db.run(
+        "INSERT INTO appointments (username, date, time) VALUES (?, ?, ?)",
+        [username, date, time],
+        () => {
+          res.json({
+            ok: true,
+            message: `נקבע תור ל־${username} ב־${time} ${NOTE_TEXT}`
+          });
+        }
+      );
+    }
+  );
 });
 
-/* ===== FRONTEND ===== */
-
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// =====================
+// מסך ניהול – יובל
+// =====================
+app.get("/api/admin/appointments", (req, res) => {
+  db.all(
+    "SELECT id, username, date, time FROM appointments ORDER BY date, time",
+    (err, rows) => {
+      res.json(
+        rows.map(r => ({
+          ...r,
+          note: NOTE_TEXT
+        }))
+      );
+    }
+  );
 });
 
-app.get("/admin", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "admin.html"));
+app.delete("/api/admin/appointments/:id", (req, res) => {
+  const { id } = req.params;
+
+  db.run(
+    "DELETE FROM appointments WHERE id = ?",
+    [id],
+    () => res.json({ ok: true })
+  );
 });
 
-/* ===== START ===== */
-
+// =====================
+// הפעלת שרת
+// =====================
 app.listen(PORT, () => {
-  console.log("=== TOMORROW MAYBE SERVER RUNNING ===");
-  console.log(`Listening on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
