@@ -8,16 +8,12 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// =====================
-// הגדרות
-// =====================
-const BARBER = "יובל";
-const ALLOWED_USERS = ["אור", "אלון", "נועם", "יהודה"];
 const SLOT_MINUTES = 30;
 const NOTE_TEXT = "בלי נדר";
+const ALLOWED_USERS = ["אור", "אלון", "נועם", "יהודה"];
 
 // =====================
-// מסד נתונים
+// DB
 // =====================
 const db = new sqlite3.Database("./appointments.db");
 
@@ -31,27 +27,24 @@ CREATE TABLE IF NOT EXISTS appointments (
 `);
 
 // =====================
-// שעות פעילות לפי יום
+// יום בשבוע בלי timezone
 // =====================
-function getWorkingHours(day) {
-  // day: 0=ראשון ... 5=שישי ... 6=שבת
-
-  // שבת – סגור
-  if (day === 6) {
-    return null;
-  }
-
-  // שישי – 12:00 עד 13:30
-  if (day === 5) {
-    return { start: "12:00", end: "14:00" };
-  }
-
-  // ראשון עד חמישי – רגיל
-  return { start: "16:00", end: "20:00" };
+function getDayFromDateString(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay();
 }
 
 // =====================
-// יצירת סלוטים
+// שעות עבודה
+// =====================
+function getWorkingHours(day) {
+  if (day === 6) return null;                // שבת
+  if (day === 5) return { start: "12:00", end: "14:00" }; // שישי
+  return { start: "16:00", end: "20:00" };  // ראשון–חמישי
+}
+
+// =====================
+// סלוטים
 // =====================
 function generateSlots(start, end) {
   const slots = [];
@@ -59,16 +52,13 @@ function generateSlots(start, end) {
   const [eh, em] = end.split(":").map(Number);
 
   while (h < eh || (h === eh && m < em)) {
-    slots.push(
-      `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
-    );
+    slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
     m += SLOT_MINUTES;
     if (m >= 60) {
       h++;
       m = 0;
     }
   }
-
   return slots;
 }
 
@@ -79,12 +69,9 @@ app.get("/api/available", (req, res) => {
   const { date } = req.query;
   if (!date) return res.json([]);
 
-  const day = new Date(date).getDay();
+  const day = getDayFromDateString(date);
   const hours = getWorkingHours(day);
-
-  if (!hours) {
-    return res.json([]);
-  }
+  if (!hours) return res.json([]);
 
   const allSlots = generateSlots(hours.start, hours.end);
 
@@ -93,8 +80,7 @@ app.get("/api/available", (req, res) => {
     [date],
     (err, rows) => {
       const taken = rows.map(r => r.time);
-      const free = allSlots.filter(t => !taken.includes(t));
-      res.json(free);
+      res.json(allSlots.filter(t => !taken.includes(t)));
     }
   );
 });
@@ -113,54 +99,35 @@ app.post("/api/book", (req, res) => {
     "SELECT id FROM appointments WHERE date = ? AND time = ?",
     [date, time],
     (err, row) => {
-      if (row) {
-        return res.status(409).json({ error: "slot_taken" });
-      }
+      if (row) return res.status(409).json({ error: "slot_taken" });
 
       db.run(
         "INSERT INTO appointments (username, date, time) VALUES (?, ?, ?)",
         [username, date, time],
-        () => {
-          res.json({
-            ok: true,
-            message: `נקבע תור ל־${username} ב־${time} ${NOTE_TEXT}`
-          });
-        }
+        () => res.json({ ok: true })
       );
     }
   );
 });
 
 // =====================
-// מסך ניהול – יובל
+// ניהול
 // =====================
 app.get("/api/admin/appointments", (req, res) => {
   db.all(
-    "SELECT id, username, date, time FROM appointments ORDER BY date, time",
-    (err, rows) => {
-      res.json(
-        rows.map(r => ({
-          ...r,
-          note: NOTE_TEXT
-        }))
-      );
-    }
+    "SELECT * FROM appointments ORDER BY date, time",
+    (err, rows) => res.json(rows)
   );
 });
 
 app.delete("/api/admin/appointments/:id", (req, res) => {
-  const { id } = req.params;
-
   db.run(
     "DELETE FROM appointments WHERE id = ?",
-    [id],
+    [req.params.id],
     () => res.json({ ok: true })
   );
 });
 
-// =====================
-// הפעלת שרת
-// =====================
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log("Server running");
 });
