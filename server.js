@@ -8,16 +8,10 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// =====================
-// הגדרות קבועות
-// =====================
 const ALLOWED_USERS = ["אור", "אלון", "נועם", "יהודה"];
 const SLOT_MINUTES = 30;
 const NOTE_TEXT = "בלי נדר";
 
-// =====================
-// מסד נתונים
-// =====================
 const db = new sqlite3.Database("./appointments.db");
 
 db.run(`
@@ -30,10 +24,11 @@ CREATE TABLE IF NOT EXISTS appointments (
 `);
 
 // =====================
-// שעות פעילות לפי יום
+// שעות פעילות – זה החלק הקריטי
 // =====================
-// 0=ראשון … 5=שישי … 6=שבת
 function getWorkingHours(day) {
+  // 0=ראשון ... 5=שישי ... 6=שבת
+
   // שבת – סגור
   if (day === 6) return null;
 
@@ -42,13 +37,11 @@ function getWorkingHours(day) {
     return { start: "12:00", end: "13:30" };
   }
 
-  // ראשון–חמישי – 16:00 עד 20:00
+  // ראשון עד חמישי – תמיד פתוח
   return { start: "16:00", end: "20:00" };
 }
 
-// =====================
 // יצירת סלוטים
-// =====================
 function generateSlots(start, end) {
   const slots = [];
   let [h, m] = start.split(":").map(Number);
@@ -121,33 +114,6 @@ app.post("/api/book", (req, res) => {
   );
 });
 
-// =====================
-// מסך ניהול – יובל
-// =====================
-app.get("/api/admin/appointments", (req, res) => {
-  db.all(
-    "SELECT id, username, date, time FROM appointments ORDER BY date, time",
-    (err, rows) => {
-      res.json(
-        rows.map(r => ({
-          ...r,
-          note: NOTE_TEXT
-        }))
-      );
-    }
-  );
-});
-
-app.delete("/api/admin/appointments/:id", (req, res) => {
-  db.run(
-    "DELETE FROM appointments WHERE id = ?",
-    [req.params.id],
-    () => res.json({ ok: true })
-  );
-});
-
-// =====================
-// הפעלת השרת
 // =====================
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
