@@ -1,97 +1,140 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="he" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <title>מסך ניהול – יובל</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ניהול תורים – יובל</title>
 
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #0b1c2d;
+      font-family: system-ui, Arial;
+      background: #0f1230;
       color: #fff;
       margin: 0;
-      padding: 16px;
+      padding: 20px;
     }
+
     h1 {
+      margin-top: 0;
       text-align: center;
     }
-    .card {
-      background: #132b44;
-      border-radius: 12px;
-      padding: 14px;
+
+    .appointment {
+      background: #1b1f4a;
+      border-radius: 10px;
+      padding: 12px;
       margin-bottom: 12px;
     }
-    .row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 8px;
+
+    .appointment.suggested {
+      border: 2px solid #ffb703;
+      background: #2a2f6a;
     }
-    button {
-      background: #ff4d4d;
+
+    .row {
+      margin-bottom: 6px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+
+    input {
+      width: 100%;
+      padding: 6px;
+      border-radius: 6px;
       border: none;
-      border-radius: 8px;
-      color: #fff;
-      padding: 6px 10px;
+      margin-top: 4px;
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      background: #7aa2ff;
+      color: #000;
+      font-weight: bold;
       cursor: pointer;
     }
-    .note {
-      opacity: 0.8;
-      font-size: 14px;
+
+    .status {
+      font-size: 13px;
+      opacity: 0.9;
     }
   </style>
 </head>
 
 <body>
+  <h1>מסך ניהול – יובל</h1>
 
-<h1>מסך ניהול – יובל</h1>
-<div id="list"></div>
+  <div id="list"></div>
 
 <script>
-  async function loadAppointments() {
-    const res = await fetch("/api/admin/appointments");
-    const data = await res.json();
+fetch("/api/admin/appointments")
+  .then(r => r.json())
+  .then(showAppointments);
 
-    const list = document.getElementById("list");
-    list.innerHTML = "";
+function showAppointments(data) {
+  const list = document.getElementById("list");
+  list.innerHTML = "";
 
-    if (data.length === 0) {
-      list.innerHTML = "<p style='text-align:center;'>אין תורים</p>";
-      return;
-    }
-
-    data.forEach(a => {
-      const div = document.createElement("div");
-      div.className = "card";
-
-      div.innerHTML = `
-        <div class="row">
-          <div>
-            <strong>${a.username}</strong><br>
-            ${a.date} | ${a.time}<br>
-            <span class="note">בלי נדר</span>
-          </div>
-          <button onclick="removeAppointment(${a.id})">מחק</button>
-        </div>
-      `;
-
-      list.appendChild(div);
-    });
+  if (!data.length) {
+    list.innerHTML = "<p>אין תורים</p>";
+    return;
   }
 
-  async function removeAppointment(id) {
-    if (!confirm("למחוק את התור?")) return;
+  data.forEach(a => {
+    const div = document.createElement("div");
+    div.className = "appointment" + (a.status === "suggested" ? " suggested" : "");
 
-    await fetch("/api/admin/appointments/" + id, {
-      method: "DELETE"
-    });
+    div.innerHTML = `
+      <div class="row"><b>שם:</b> ${a.username}</div>
+      <div class="row"><b>תאריך:</b> ${a.date}</div>
+      <div class="row"><b>שעה:</b> ${a.time}</div>
+      <div class="row status">
+        סטטוס: ${a.status === "suggested" ? "הוצעה שעה אחרת" : "תור רגיל"}
+      </div>
 
-    loadAppointments();
+      <label>הצע יום אחר</label>
+      <input type="date" id="d-${a.id}" value="${a.date}" />
+
+      <label>הצע שעה אחרת</label>
+      <input type="time" id="t-${a.id}" value="${a.time}" />
+
+      <button onclick="suggest(${a.id})">הצע יום ושעה</button>
+    `;
+
+    list.appendChild(div);
+  });
+}
+
+function suggest(id) {
+  const suggested_date = document.getElementById("d-" + id).value;
+  const suggested_time = document.getElementById("t-" + id).value;
+
+  if (!suggested_date || !suggested_time) {
+    alert("חובה לבחור יום ושעה");
+    return;
   }
 
-  loadAppointments();
+  fetch("/api/admin/suggest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id,
+      suggested_date,
+      suggested_time
+    })
+  })
+  .then(r => r.json())
+  .then(() => {
+    alert("ההצעה נשלחה");
+    location.reload();
+  });
+}
 </script>
-
 </body>
 </html>
