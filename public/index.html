@@ -1,95 +1,114 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>tomorrow maybe</title>
-<style>
-body{margin:0;font-family:Arial;background:#081626;color:white;text-align:center}
-h1{margin-top:20px}
-input{padding:12px;width:80%;max-width:300px;border-radius:8px;border:none;margin-bottom:20px}
-.days,.times{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:20px}
-button{padding:14px;border:none;border-radius:10px;background:#1c3a55;color:white}
-button.active{background:#2196f3}
-.main{background:#2196f3;font-size:18px;width:80%;max-width:300px;margin-bottom:40px}
-</style>
+  <meta charset="UTF-8">
+  <title>tomorrow maybe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      background:#081a2b;
+      color:white;
+      font-family:Arial;
+      text-align:center;
+      padding:20px;
+    }
+    input, button, select {
+      padding:10px;
+      margin:5px;
+      font-size:16px;
+    }
+    button {
+      background:#2196f3;
+      color:white;
+      border:none;
+      border-radius:6px;
+      cursor:pointer;
+    }
+    button.red {
+      background:#e53935;
+    }
+    .slots button {
+      margin:4px;
+    }
+  </style>
 </head>
 <body>
 
 <h1>tomorrow maybe</h1>
-<p>קביעת תור ליובל – בלי נדר</p>
+<p>קביעת תור ליובל</p>
 
-<input id="name" placeholder="שם מלא">
+<input id="username" placeholder="שם מלא">
 
-<h2>בחר יום</h2>
-<div class="days" id="days"></div>
+<br><br>
 
-<h2>בחר שעה</h2>
-<div class="times" id="times"></div>
+<input type="date" id="date">
 
-<button class="main" onclick="book()">קבע תור</button>
+<br><br>
+
+<button onclick="loadSlots()">טען שעות</button>
+
+<div class="slots" id="slots"></div>
+
+<br>
+
+<button onclick="book()">קבע תור</button>
+
+<hr>
+
+<h3>ביטול תור</h3>
+<button class="red" onclick="cancel()">בטל תור</button>
 
 <script>
-let selectedDate=null
-let selectedTime=null
+let selectedTime = null;
 
-const daysDiv=document.getElementById("days")
-const timesDiv=document.getElementById("times")
+function loadSlots() {
+  const date = document.getElementById("date").value;
+  fetch(`/api/available?date=${date}`)
+    .then(r => r.json())
+    .then(times => {
+      const div = document.getElementById("slots");
+      div.innerHTML = "";
+      selectedTime = null;
 
-const today=new Date()
-
-for(let i=0;i<6;i++){
-  const d=new Date()
-  d.setDate(today.getDate()+i)
-  const date=d.toISOString().split("T")[0]
-
-  const label=`יום ${["א","ב","ג","ד","ה","ו","ש"][d.getDay()]} ${d.getDate()}-ה`
-  const b=document.createElement("button")
-  b.innerText=label
-  b.onclick=()=>selectDay(date,b)
-  daysDiv.appendChild(b)
+      times.forEach(t => {
+        const b = document.createElement("button");
+        b.innerText = t;
+        b.onclick = () => {
+          selectedTime = t;
+          document.querySelectorAll(".slots button").forEach(x => x.style.background="#2196f3");
+          b.style.background = "#4caf50";
+        };
+        div.appendChild(b);
+      });
+    });
 }
 
-function selectDay(date,btn){
-  selectedDate=date
-  selectedTime=null
-  document.querySelectorAll(".days button").forEach(b=>b.classList.remove("active"))
-  btn.classList.add("active")
-  loadTimes()
-}
-
-async function loadTimes(){
-  timesDiv.innerHTML=""
-  const res=await fetch(`/api/times?date=${selectedDate}`)
-  const times=await res.json()
-
-  times.forEach(t=>{
-    const b=document.createElement("button")
-    b.innerText=t
-    b.onclick=()=>{
-      selectedTime=t
-      document.querySelectorAll(".times button").forEach(x=>x.classList.remove("active"))
-      b.classList.add("active")
-    }
-    timesDiv.appendChild(b)
-  })
-}
-
-async function book(){
-  const name=document.getElementById("name").value
-  if(!name||!selectedDate||!selectedTime){
-    alert("חסר שם / יום / שעה")
-    return
-  }
-
-  await fetch("/api/appointments",{
+function book() {
+  fetch("/api/book", {
     method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({name,date:selectedDate,time:selectedTime})
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({
+      username: username.value,
+      date: date.value,
+      time: selectedTime
+    })
   })
+  .then(r => r.json())
+  .then(() => alert("התור נקבע"));
+}
 
-  alert("התור נקלט")
-  location.reload()
+function cancel() {
+  fetch("/api/cancel", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({
+      username: username.value,
+      date: date.value,
+      time: selectedTime
+    })
+  })
+  .then(r => r.json())
+  .then(() => alert("התור בוטל"));
 }
 </script>
 

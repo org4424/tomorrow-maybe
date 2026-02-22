@@ -1,48 +1,84 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<title>ניהול – יובל</title>
-<style>
-body{font-family:Arial;background:#0b0f2a;color:white;padding:20px}
-.card{background:#1c1f4a;padding:15px;border-radius:10px;margin-bottom:10px}
-button{background:#e53935;color:white;border:none;padding:8px 12px;border-radius:6px}
-</style>
+  <meta charset="UTF-8">
+  <title>ניהול – יובל</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      background:#0d0d2b;
+      color:white;
+      font-family:Arial;
+      padding:20px;
+    }
+    .card {
+      background:#1c1c3c;
+      padding:15px;
+      margin:10px 0;
+      border-radius:8px;
+    }
+    button {
+      padding:8px;
+      margin:4px;
+      border:none;
+      border-radius:5px;
+      cursor:pointer;
+    }
+    .red { background:#e53935; color:white; }
+    .green { background:#4caf50; color:white; }
+  </style>
 </head>
 <body>
 
 <h1>מסך ניהול – יובל</h1>
+
 <div id="list"></div>
 
 <script>
-async function load(){
-  const res=await fetch("/api/admin/appointments")
-  const data=await res.json()
-  const list=document.getElementById("list")
-  list.innerHTML=""
+function load() {
+  fetch("/api/admin/appointments")
+    .then(r => r.json())
+    .then(rows => {
+      const div = document.getElementById("list");
+      div.innerHTML = "";
 
-  data.forEach(a=>{
-    const d=document.createElement("div")
-    d.className="card"
-    d.innerHTML=`
-      <b>${a.name}</b><br>
-      ${a.date} | ${a.time}<br><br>
-      <button onclick="cancel(${a.id})">בטל תור</button>
-    `
-    list.appendChild(d)
-  })
+      rows.forEach(a => {
+        const c = document.createElement("div");
+        c.className = "card";
+        c.innerHTML = `
+          <b>${a.username}</b><br>
+          ${a.date} | ${a.time}<br><br>
+
+          <input type="date" id="d${a.id}" value="${a.date}">
+          <input type="time" id="t${a.id}" value="${a.time}">
+          <br>
+
+          <button class="green" onclick="update(${a.id})">שנה</button>
+          <button class="red" onclick="remove(${a.id})">בטל</button>
+        `;
+        div.appendChild(c);
+      });
+    });
 }
 
-async function cancel(id){
-  await fetch("/api/appointments/cancel",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({id})
-  })
-  load()
+function remove(id) {
+  fetch(`/api/admin/appointments/${id}`, { method:"DELETE" })
+    .then(() => load());
 }
 
-load()
+function update(id) {
+  fetch(`/api/admin/appointments/${id}`, {
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body:JSON.stringify({
+      date: document.getElementById("d"+id).value,
+      time: document.getElementById("t"+id).value
+    })
+  })
+  .then(() => load());
+}
+
+load();
 </script>
 
 </body>
