@@ -8,6 +8,8 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+const SLOT_MINUTES = 30;
+
 // =====================
 // DB
 // =====================
@@ -25,19 +27,15 @@ CREATE TABLE IF NOT EXISTS appointments (
 // =====================
 // שעות פעילות
 // =====================
-const SLOT_MINUTES = 30;
-
 function getWorkingHours(day) {
-  // 0=ראשון ... 5=שישי ... 6=שבת
-  if (day === 6) return null; // שבת סגור
-
-  if (day === 5) {
-    return { start: "12:00", end: "13:30" }; // שישי
-  }
-
-  return { start: "16:00", end: "20:00" }; // כל השאר
+  if (day === 6) return null;              // שבת סגור
+  if (day === 5) return { start: "12:00", end: "13:30" }; // שישי
+  return { start: "16:00", end: "20:00" }; // שאר הימים
 }
 
+// =====================
+// יצירת סלוטים
+// =====================
 function generateSlots(start, end) {
   const slots = [];
   let [h, m] = start.split(":").map(Number);
@@ -46,16 +44,13 @@ function generateSlots(start, end) {
   while (h < eh || (h === eh && m < em)) {
     slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
     m += SLOT_MINUTES;
-    if (m >= 60) {
-      h++;
-      m = 0;
-    }
+    if (m >= 60) { h++; m = 0; }
   }
   return slots;
 }
 
 // =====================
-// API – שעות פנויות ללקוח
+// שעות פנויות
 // =====================
 app.get("/api/available", (req, res) => {
   const { date } = req.query;
@@ -79,7 +74,7 @@ app.get("/api/available", (req, res) => {
 });
 
 // =====================
-// API – קביעת תור
+// קביעת תור
 // =====================
 app.post("/api/book", (req, res) => {
   const { username, date, time } = req.body;
@@ -108,7 +103,7 @@ app.post("/api/book", (req, res) => {
 });
 
 // =====================
-// API – ביטול תור (לקוח)
+// ביטול תור – לקוח
 // =====================
 app.post("/api/cancel", (req, res) => {
   const { username, date, time } = req.body;
@@ -123,7 +118,7 @@ app.post("/api/cancel", (req, res) => {
 });
 
 // =====================
-// API – ניהול (יובל) – כל התורים
+// ניהול – רשימת תורים
 // =====================
 app.get("/api/admin/appointments", (req, res) => {
   db.all(
@@ -133,35 +128,32 @@ app.get("/api/admin/appointments", (req, res) => {
 });
 
 // =====================
-// API – ניהול – ביטול תור
-// =====================
-app.delete("/api/admin/appointments/:id", (req, res) => {
-  db.run(
-    "DELETE FROM appointments WHERE id = ?",
-    [req.params.id],
-    () => res.json({ ok: true })
-  );
-});
-
-// =====================
-// API – ניהול – שינוי יום ושעה
+// ניהול – שינוי תור
 // =====================
 app.put("/api/admin/appointments/:id", (req, res) => {
   const { date, time } = req.body;
-
-  if (!date || !time) {
-    return res.status(400).json({ error: "missing_fields" });
-  }
+  const { id } = req.params;
 
   db.run(
     "UPDATE appointments SET date = ?, time = ? WHERE id = ?",
-    [date, time, req.params.id],
+    [date, time, id],
     () => res.json({ ok: true })
   );
 });
 
 // =====================
-// START
+// ניהול – ביטול תור
+// =====================
+app.delete("/api/admin/appointments/:id", (req, res) => {
+  const { id } = req.params;
+
+  db.run(
+    "DELETE FROM appointments WHERE id = ?",
+    [id],
+    () => res.json({ ok: true })
+  );
+});
+
 // =====================
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
