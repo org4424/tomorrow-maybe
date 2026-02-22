@@ -1,166 +1,158 @@
-const express = require("express");
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
+const express = require("express")
+const path = require("path")
+const sqlite3 = require("sqlite3").verbose()
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const app = express()
+const PORT = process.env.PORT || 3000
 
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json())
+app.use(express.static("public"))
 
-// =====================
-// הגדרות קבועות
-// =====================
-const BARBER = "יובל";
-const ALLOWED_USERS = ["אור", "אלון", "נועם", "יהודה"];
-const SLOT_MINUTES = 30;
-const NOTE_TEXT = "בלי נדר";
+/* ======================
+   DATABASE
+====================== */
+const db = new sqlite3.Database("./appointments.db")
 
-// =====================
-// חיבור למסד נתונים
-// =====================
-const db = new sqlite3.Database("./appointments.db");
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS appointments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      date TEXT,
+      time TEXT,
+      status TEXT
+    )
+  `)
+})
 
-// =====================
-// יצירת טבלה
-// =====================
-db.run(`
-CREATE TABLE IF NOT EXISTS appointments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT NOT NULL,
-  date TEXT NOT NULL,
-  time TEXT NOT NULL,
-  status TEXT DEFAULT 'booked',
-  suggested_date TEXT,
-  suggested_time TEXT
-)
-`);
+/* ======================
+   HELPERS
+====================== */
 
-// =====================
-// שעות פעילות
-// =====================
-function getWorkingHours(day) {
-  // 0=ראשון ... 5=שישי ... 6=שבת
-  if (day >= 0 && day <= 4) {
-    return { start: "16:00", end: "20:00" };
-  }
-  if (day === 5) {
-    return { start: "12:00", end: "13:30" };
-  }
-  return null; // שבת סגור
+function getDayOfWeek(dateStr) {
+  // 0=Sunday ... 6=Saturday
+  return new Date(dateStr).getDay()
 }
 
-// =====================
-// יצירת סלוטים
-// =====================
-function generateSlots(start, end) {
-  const slots = [];
-  let [h, m] = start.split(":").map(Number);
-  const [eh, em] = end.split(":").map(Number);
+function getAvailableTimes(dateStr) {
+  const day = getDayOfWeek(dateStr)
+  const times = []
 
-  while (h < eh || (h === eh && m < em)) {
-    slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    m += SLOT_MINUTES;
-    if (m >= 60) {
-      h++;
-      m = 0;
+  // שבת – אין שעות
+  if (day === 6) return []
+
+  // שישי – רק 12:00–13:30
+  if (day === 5) {
+    return ["12:00", "12:30", "13:00", "13:30"]
+  }
+
+  // כל שאר הימים
+  let hour = 16
+  let minute = 0
+
+  while (hour < 20) {
+    const h = hour.toString().padStart(2, "0")
+    const m = minute === 0 ? "00" : "30"
+    times.push(`${h}:${m}`)
+
+    minute += 30
+    if (minute === 60) {
+      minute = 0
+      hour++
     }
   }
-  return slots;
+
+  return times
 }
 
-// =====================
-// זמנים פנויים
-// =====================
-app.get("/api/available", (req, res) => {
-  const { date } = req.query;
-  if (!date) return res.json([]);
+/* ======================
+   ROUTES – CLIENT
+====================== */
 
-  const day = new Date(date).getDay();
-  const hours = getWorkingHours(day);
-  if (!hours) return res.json([]);
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public/index.html"))
+})
 
-  const allSlots = generateSlots(hours.start, hours.end);
+app.get("/admin.html", (req, res) => {
+  res.sendFile(path.join(__dirname, "public/admin.html"))
+})
+
+/* ======================
+   API – TIMES
+====================== */
+
+app.get("/api/times", (req, res) => {
+  const { date } = req.query
+  if (!date) return res.json([])
+
+  const allTimes = getAvailableTimes(date)
 
   db.all(
-    "SELECT time FROM appointments WHERE date = ? AND status = 'booked'",
+    `SELECT time FROM appointments WHERE date = ? AND status = 'approved'`,
     [date],
     (err, rows) => {
-      const taken = rows.map(r => r.time);
-      const free = allSlots.filter(t => !taken.includes(t));
-      res.json(free);
+      const taken = rows.map(r => r.time)
+      const available = allTimes.filter(t => !taken.includes(t))
+      res.json(available)
     }
-  );
-});
+  )
+})
 
-// =====================
-// קביעת תור
-// =====================
-app.post("/api/book", (req, res) => {
-  const { username, date, time } = req.body;
+/* ======================
+   API – CREATE APPOINTMENT
+====================== */
 
-  if (!ALLOWED_USERS.includes(username)) {
-    return res.status(403).json({ error: "user_not_allowed" });
+app.post("/api/appointments", (req, res) => {
+  const { name, date, time } = req.body
+  if (!name || !date || !time) {
+    return res.status(400).json({ error: "missing fields" })
   }
 
-  db.get(
-    "SELECT id FROM appointments WHERE date = ? AND time = ? AND status = 'booked'",
-    [date, time],
-    (err, row) => {
-      if (row) {
-        return res.status(409).json({ error: "slot_taken" });
-      }
+  db.run(
+    `INSERT INTO appointments (name, date, time, status)
+     VALUES (?, ?, ?, 'pending')`,
+    [name, date, time],
+    () => res.json({ success: true })
+  )
+})
 
-      db.run(
-        "INSERT INTO appointments (username, date, time) VALUES (?, ?, ?)",
-        [username, date, time],
-        () => {
-          res.json({
-            ok: true,
-            message: `נקבע תור ל־${username} ב־${time} ${NOTE_TEXT}`
-          });
-        }
-      );
-    }
-  );
-});
+/* ======================
+   API – ADMIN
+====================== */
 
-// =====================
-// מסך ניהול – יובל
-// =====================
-
-// כל התורים
 app.get("/api/admin/appointments", (req, res) => {
   db.all(
-    "SELECT * FROM appointments ORDER BY date, time",
-    (err, rows) => {
-      res.json(rows);
-    }
-  );
-});
+    `SELECT * FROM appointments ORDER BY date, time`,
+    (err, rows) => res.json(rows)
+  )
+})
 
-// יובל מציע שעה אחרת
 app.post("/api/admin/suggest", (req, res) => {
-  const { id, suggested_date, suggested_time } = req.body;
+  const { id, newDate, newTime } = req.body
 
   db.run(
-    `
-    UPDATE appointments
-    SET status = 'suggested',
-        suggested_date = ?,
-        suggested_time = ?
-    WHERE id = ?
-    `,
-    [suggested_date, suggested_time, id],
-    () => {
-      res.json({ ok: true });
-    }
-  );
-});
+    `UPDATE appointments
+     SET date = ?, time = ?, status = 'suggested'
+     WHERE id = ?`,
+    [newDate, newTime, id],
+    () => res.json({ success: true })
+  )
+})
 
-// =====================
-// הפעלת השרת
-// =====================
+app.post("/api/admin/approve", (req, res) => {
+  const { id } = req.body
+
+  db.run(
+    `UPDATE appointments SET status = 'approved' WHERE id = ?`,
+    [id],
+    () => res.json({ success: true })
+  )
+})
+
+/* ======================
+   START
+====================== */
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+  console.log("SERVER RUNNING ON PORT", PORT)
+})
