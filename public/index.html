@@ -1,58 +1,25 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <title>tomorrow maybe</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: linear-gradient(180deg, #0a1d2f, #081626);
-      color: white;
-      text-align: center;
-    }
-
-    h1 { margin-top: 20px }
-    h2 { margin: 30px 0 10px }
-
-    .days, .times {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
-      padding: 0 20px;
-      max-width: 500px;
-      margin: auto;
-    }
-
-    button {
-      padding: 14px;
-      font-size: 16px;
-      border: none;
-      border-radius: 10px;
-      background: #1c3a55;
-      color: white;
-      cursor: pointer;
-    }
-
-    button.active {
-      background: #2196f3;
-    }
-
-    .main-btn {
-      margin: 30px auto;
-      width: 80%;
-      max-width: 300px;
-      padding: 16px;
-      font-size: 18px;
-      background: #2196f3;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>tomorrow maybe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{margin:0;font-family:Arial;background:#081626;color:white;text-align:center}
+h1{margin-top:20px}
+input{padding:12px;width:80%;max-width:300px;border-radius:8px;border:none}
+.days,.times{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:20px}
+button{padding:14px;border:none;border-radius:10px;background:#1c3a55;color:white}
+button.active{background:#2196f3}
+.main{background:#2196f3;font-size:18px;width:80%;max-width:300px}
+</style>
 </head>
 <body>
 
 <h1>tomorrow maybe</h1>
 <p>קביעת תור ליובל – בלי נדר</p>
+
+<input id="name" placeholder="שם מלא">
 
 <h2>בחר יום</h2>
 <div class="days" id="days"></div>
@@ -60,96 +27,56 @@
 <h2>בחר שעה</h2>
 <div class="times" id="times"></div>
 
-<button class="main-btn" onclick="book()">קבע תור</button>
+<button class="main" onclick="book()">קבע תור</button>
 
 <script>
-let selectedDate = null
-let selectedTime = null
+let selectedDate=null, selectedTime=null
 
-/* =====================
-   BUILD DAYS
-===================== */
-const daysDiv = document.getElementById("days")
-const today = new Date()
+const daysDiv=document.getElementById("days")
+const today=new Date()
 
-for (let i = 0; i < 6; i++) {
-  const d = new Date()
-  d.setDate(today.getDate() + i)
-
-  const dateStr = d.toISOString().split("T")[0]
-  const label = `יום ${["א","ב","ג","ד","ה","ו","ש"][d.getDay()]} ${d.getDate()}-ה`
-
-  const btn = document.createElement("button")
-  btn.innerText = label
-
-  btn.onclick = () => selectDay(dateStr, btn)
-  daysDiv.appendChild(btn)
+for(let i=0;i<6;i++){
+  const d=new Date()
+  d.setDate(today.getDate()+i)
+  const date=d.toISOString().split("T")[0]
+  const label=`יום ${["א","ב","ג","ד","ה","ו","ש"][d.getDay()]} ${d.getDate()}-ה`
+  const b=document.createElement("button")
+  b.innerText=label
+  b.onclick=()=>selectDay(date,b)
+  daysDiv.appendChild(b)
 }
 
-/* =====================
-   SELECT DAY
-===================== */
-function selectDay(date, btn) {
-  selectedDate = date
-  selectedTime = null
-
-  document.querySelectorAll(".days button")
-    .forEach(b => b.classList.remove("active"))
+function selectDay(date,btn){
+  selectedDate=date
+  document.querySelectorAll(".days button").forEach(b=>b.classList.remove("active"))
   btn.classList.add("active")
-
   loadTimes()
 }
 
-/* =====================
-   LOAD TIMES
-===================== */
-async function loadTimes() {
-  const timesDiv = document.getElementById("times")
-  timesDiv.innerHTML = ""
-
-  const res = await fetch(`/api/times?date=${selectedDate}`)
-  const times = await res.json()
-
-  if (times.length === 0) {
-    timesDiv.innerHTML = "<p>אין שעות פנויות</p>"
-    return
-  }
-
-  times.forEach(t => {
-    const btn = document.createElement("button")
-    btn.innerText = t
-
-    btn.onclick = () => {
-      selectedTime = t
-      document.querySelectorAll(".times button")
-        .forEach(b => b.classList.remove("active"))
-      btn.classList.add("active")
-    }
-
-    timesDiv.appendChild(btn)
+async function loadTimes(){
+  const t=document.getElementById("times")
+  t.innerHTML=""
+  const res=await fetch(`/api/times?date=${selectedDate}`)
+  const times=await res.json()
+  times.forEach(x=>{
+    const b=document.createElement("button")
+    b.innerText=x
+    b.onclick=()=>{selectedTime=x;document.querySelectorAll(".times button").forEach(b=>b.classList.remove("active"));b.classList.add("active")}
+    t.appendChild(b)
   })
 }
 
-/* =====================
-   BOOK
-===================== */
-async function book() {
-  if (!selectedDate || !selectedTime) {
-    alert("בחר יום ושעה")
-    return
-  }
+async function book(){
+  const name=document.getElementById("name").value
+  if(!name||!selectedDate||!selectedTime){alert("חסר פרטים");return}
 
-  await fetch("/api/appointments", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: "לקוח",
-      date: selectedDate,
-      time: selectedTime
-    })
+  await fetch("/api/appointments",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name,date:selectedDate,time:selectedTime})
   })
 
-  alert("התור נקלט וממתין לאישור")
+  alert("התור נקלט")
   location.reload()
 }
 </script>
