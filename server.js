@@ -8,20 +8,31 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// =====================
+// הגדרות קבועות
+// =====================
+const BARBER = "יובל";
+const ALLOWED_USERS = ["אור", "אלון", "נועם", "יהודה"];
 const SLOT_MINUTES = 30;
 const NOTE_TEXT = "בלי נדר";
 
 // =====================
-// DB
+// חיבור למסד נתונים
 // =====================
 const db = new sqlite3.Database("./appointments.db");
 
+// =====================
+// יצירת טבלה
+// =====================
 db.run(`
 CREATE TABLE IF NOT EXISTS appointments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL,
   date TEXT NOT NULL,
-  time TEXT NOT NULL
+  time TEXT NOT NULL,
+  status TEXT DEFAULT 'booked',
+  suggested_date TEXT,
+  suggested_time TEXT
 )
 `);
 
@@ -29,18 +40,19 @@ CREATE TABLE IF NOT EXISTS appointments (
 // שעות פעילות
 // =====================
 function getWorkingHours(day) {
-  // 0=Sunday ... 5=Friday ... 6=Saturday
-  if (day === 6) return null; // שבת סגור
-
+  // 0=ראשון ... 5=שישי ... 6=שבת
+  if (day >= 0 && day <= 4) {
+    return { start: "16:00", end: "20:00" };
+  }
   if (day === 5) {
-    // שישי
     return { start: "12:00", end: "13:30" };
   }
-
-  // כל שאר הימים
-  return { start: "16:00", end: "20:00" };
+  return null; // שבת סגור
 }
 
+// =====================
+// יצירת סלוטים
+// =====================
 function generateSlots(start, end) {
   const slots = [];
   let [h, m] = start.split(":").map(Number);
@@ -58,7 +70,7 @@ function generateSlots(start, end) {
 }
 
 // =====================
-// זמינות
+// זמנים פנויים
 // =====================
 app.get("/api/available", (req, res) => {
   const { date } = req.query;
@@ -71,10 +83,9 @@ app.get("/api/available", (req, res) => {
   const allSlots = generateSlots(hours.start, hours.end);
 
   db.all(
-    "SELECT time FROM appointments WHERE date = ?",
+    "SELECT time FROM appointments WHERE date = ? AND status = 'booked'",
     [date],
     (err, rows) => {
-      if (err) return res.json([]);
       const taken = rows.map(r => r.time);
       const free = allSlots.filter(t => !taken.includes(t));
       res.json(free);
@@ -88,12 +99,12 @@ app.get("/api/available", (req, res) => {
 app.post("/api/book", (req, res) => {
   const { username, date, time } = req.body;
 
-  if (!username || !date || !time) {
-    return res.status(400).json({ error: "missing_fields" });
+  if (!ALLOWED_USERS.includes(username)) {
+    return res.status(403).json({ error: "user_not_allowed" });
   }
 
   db.get(
-    "SELECT id FROM appointments WHERE date = ? AND time = ?",
+    "SELECT id FROM appointments WHERE date = ? AND time = ? AND status = 'booked'",
     [date, time],
     (err, row) => {
       if (row) {
@@ -103,10 +114,9 @@ app.post("/api/book", (req, res) => {
       db.run(
         "INSERT INTO appointments (username, date, time) VALUES (?, ?, ?)",
         [username, date, time],
-        function () {
+        () => {
           res.json({
             ok: true,
-            id: this.lastID,
             message: `נקבע תור ל־${username} ב־${time} ${NOTE_TEXT}`
           });
         }
@@ -118,25 +128,39 @@ app.post("/api/book", (req, res) => {
 // =====================
 // מסך ניהול – יובל
 // =====================
+
+// כל התורים
 app.get("/api/admin/appointments", (req, res) => {
   db.all(
-    "SELECT id, username, date, time FROM appointments ORDER BY date, time",
+    "SELECT * FROM appointments ORDER BY date, time",
     (err, rows) => {
-      if (err) return res.json([]);
       res.json(rows);
     }
   );
 });
 
-app.delete("/api/admin/appointments/:id", (req, res) => {
+// יובל מציע שעה אחרת
+app.post("/api/admin/suggest", (req, res) => {
+  const { id, suggested_date, suggested_time } = req.body;
+
   db.run(
-    "DELETE FROM appointments WHERE id = ?",
-    [req.params.id],
-    () => res.json({ ok: true })
+    `
+    UPDATE appointments
+    SET status = 'suggested',
+        suggested_date = ?,
+        suggested_time = ?
+    WHERE id = ?
+    `,
+    [suggested_date, suggested_time, id],
+    () => {
+      res.json({ ok: true });
+    }
   );
 });
 
 // =====================
+// הפעלת השרת
+// =====================
 app.listen(PORT, () => {
-  console.log("=== TOMORROW MAYBE SERVER RUNNING ===");
+  console.log(`Server running on port ${PORT}`);
 });
