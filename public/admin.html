@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>ניהול</title>
+<title>ניהול – יובל</title>
 <style>
 body{font-family:Arial;background:#0b0f2a;color:white;padding:20px}
 .card{background:#1c1f4a;padding:15px;border-radius:10px;margin-bottom:10px}
@@ -20,6 +20,7 @@ async function load(){
   const data=await res.json()
   const list=document.getElementById("list")
   list.innerHTML=""
+
   data.forEach(a=>{
     const d=document.createElement("div")
     d.className="card"

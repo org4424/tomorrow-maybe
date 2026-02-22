@@ -25,17 +25,19 @@ db.serialize(() => {
 })
 
 /* ======================
-   AVAILABLE TIMES
+   TIMES BY DATE
 ====================== */
 app.get("/api/times", (req, res) => {
-  const date = req.query.date
+  const { date } = req.query
   if (!date) return res.json([])
 
   const day = new Date(date).getDay()
   let times = []
 
-  if (day === 6) return res.json([]) // שבת
+  // שבת
+  if (day === 6) return res.json([])
 
+  // שישי
   if (day === 5) {
     times = ["12:00", "12:30", "13:00", "13:30"]
   } else {
@@ -50,7 +52,8 @@ app.get("/api/times", (req, res) => {
     [date],
     (err, rows) => {
       const taken = rows.map(r => r.time)
-      res.json(times.filter(t => !taken.includes(t)))
+      const available = times.filter(t => !taken.includes(t))
+      res.json(available)
     }
   )
 })
@@ -64,17 +67,17 @@ app.post("/api/appointments", (req, res) => {
 
   db.run(
     "INSERT INTO appointments (name,date,time,status) VALUES (?,?,?,?)",
-    [name, date, time, "pending"],
+    [name, date, time, "active"],
     () => res.sendStatus(200)
   )
 })
 
 /* ======================
-   LIST (ADMIN)
+   ADMIN LIST
 ====================== */
 app.get("/api/admin/appointments", (req, res) => {
   db.all(
-    "SELECT * FROM appointments WHERE status!='cancelled' ORDER BY date,time",
+    "SELECT * FROM appointments WHERE status='active' ORDER BY date,time",
     [],
     (err, rows) => res.json(rows)
   )

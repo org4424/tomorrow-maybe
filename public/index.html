@@ -2,16 +2,16 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>tomorrow maybe</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tomorrow maybe</title>
 <style>
 body{margin:0;font-family:Arial;background:#081626;color:white;text-align:center}
 h1{margin-top:20px}
-input{padding:12px;width:80%;max-width:300px;border-radius:8px;border:none}
+input{padding:12px;width:80%;max-width:300px;border-radius:8px;border:none;margin-bottom:20px}
 .days,.times{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:20px}
 button{padding:14px;border:none;border-radius:10px;background:#1c3a55;color:white}
 button.active{background:#2196f3}
-.main{background:#2196f3;font-size:18px;width:80%;max-width:300px}
+.main{background:#2196f3;font-size:18px;width:80%;max-width:300px;margin-bottom:40px}
 </style>
 </head>
 <body>
@@ -30,15 +30,19 @@ button.active{background:#2196f3}
 <button class="main" onclick="book()">קבע תור</button>
 
 <script>
-let selectedDate=null, selectedTime=null
+let selectedDate=null
+let selectedTime=null
 
 const daysDiv=document.getElementById("days")
+const timesDiv=document.getElementById("times")
+
 const today=new Date()
 
 for(let i=0;i<6;i++){
   const d=new Date()
   d.setDate(today.getDate()+i)
   const date=d.toISOString().split("T")[0]
+
   const label=`יום ${["א","ב","ג","ד","ה","ו","ש"][d.getDay()]} ${d.getDate()}-ה`
   const b=document.createElement("button")
   b.innerText=label
@@ -48,27 +52,35 @@ for(let i=0;i<6;i++){
 
 function selectDay(date,btn){
   selectedDate=date
+  selectedTime=null
   document.querySelectorAll(".days button").forEach(b=>b.classList.remove("active"))
   btn.classList.add("active")
   loadTimes()
 }
 
 async function loadTimes(){
-  const t=document.getElementById("times")
-  t.innerHTML=""
+  timesDiv.innerHTML=""
   const res=await fetch(`/api/times?date=${selectedDate}`)
   const times=await res.json()
-  times.forEach(x=>{
+
+  times.forEach(t=>{
     const b=document.createElement("button")
-    b.innerText=x
-    b.onclick=()=>{selectedTime=x;document.querySelectorAll(".times button").forEach(b=>b.classList.remove("active"));b.classList.add("active")}
-    t.appendChild(b)
+    b.innerText=t
+    b.onclick=()=>{
+      selectedTime=t
+      document.querySelectorAll(".times button").forEach(x=>x.classList.remove("active"))
+      b.classList.add("active")
+    }
+    timesDiv.appendChild(b)
   })
 }
 
 async function book(){
   const name=document.getElementById("name").value
-  if(!name||!selectedDate||!selectedTime){alert("חסר פרטים");return}
+  if(!name||!selectedDate||!selectedTime){
+    alert("חסר שם / יום / שעה")
+    return
+  }
 
   await fetch("/api/appointments",{
     method:"POST",
