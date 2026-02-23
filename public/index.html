@@ -1,116 +1,392 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="he" dir="rtl">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>tomorrow maybe</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body {
-      background:#081a2b;
-      color:white;
-      font-family:Arial;
-      text-align:center;
-      padding:20px;
+    :root{
+      --bg:#070814; --card:#0f1230; --txt:#e9ecff; --mut:#aab1ff;
+      --acc:#2d9cff; --line:rgba(122,162,255,.25);
+      --shadow: 0 18px 60px rgba(0,0,0,.45);
+      --r:18px;
+      --danger:#e74c3c;
+      --ok:#2ecc71;
     }
-    input, button, select {
-      padding:10px;
-      margin:5px;
+    html,body{height:100%;}
+    body{
+      margin:0;
+      background:radial-gradient(900px 700px at 20% 10%, rgba(122,162,255,.16), transparent),
+                 radial-gradient(900px 700px at 80% 0%, rgba(45,156,255,.12), transparent),
+                 var(--bg);
+      color:var(--txt);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    }
+    .wrap{max-width:980px;margin:0 auto;padding:28px 16px 60px;}
+    header{display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:18px;}
+    h1{margin:0;font-size:44px;letter-spacing:.3px;}
+    .sub{color:var(--mut);font-size:16px}
+    .card{
+      background:rgba(15,18,48,.65);
+      border:1px solid var(--line);
+      border-radius:24px;
+      box-shadow:var(--shadow);
+      padding:18px;
+    }
+    .grid{display:grid;grid-template-columns:1fr;gap:14px;}
+    @media (min-width: 860px){
+      .grid{grid-template-columns:1.1fr .9fr;}
+    }
+    label{display:block;color:var(--mut);font-size:14px;margin-bottom:8px}
+    input[type="text"],input[type="date"]{
+      width:100%;
+      box-sizing:border-box;
+      background:rgba(255,255,255,.06);
+      color:var(--txt);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:14px;
+      padding:12px 14px;
       font-size:16px;
+      outline:none;
     }
-    button {
-      background:#2196f3;
-      color:white;
-      border:none;
-      border-radius:6px;
+    .sectionTitle{
+      margin:14px 0 10px;
+      font-size:20px;
+      text-align:center;
+      color:var(--txt);
+      font-weight:800;
+    }
+    .slots{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      justify-content:center;
+      padding:6px 0 12px;
+    }
+    .slotBtn{
+      min-width:92px;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      color:var(--txt);
       cursor:pointer;
+      font-size:16px;
+      transition:.12s;
     }
-    button.red {
-      background:#e53935;
+    .slotBtn:hover{transform:translateY(-1px);}
+    .slotBtn.active{
+      background:var(--acc);
+      border-color:transparent;
+      color:white;
     }
-    .slots button {
-      margin:4px;
+    .btn{
+      width:100%;
+      padding:14px 16px;
+      border-radius:16px;
+      border:0;
+      cursor:pointer;
+      font-size:18px;
+      font-weight:800;
+      background:var(--acc);
+      color:white;
     }
+    .btn:disabled{
+      opacity:.45;
+      cursor:not-allowed;
+    }
+    .dangerBtn{
+      background:var(--danger);
+    }
+    .ok{
+      color:rgba(46, 204, 113,.95);
+      font-weight:700;
+      text-align:center;
+      margin-top:10px;
+    }
+    .err{
+      color:rgba(231, 76, 60,.95);
+      font-weight:700;
+      text-align:center;
+      margin-top:10px;
+    }
+    .small{
+      color:var(--mut);
+      text-align:center;
+      margin-top:6px;
+      font-size:13px;
+    }
+    .myBox{
+      margin-top:14px;
+      padding-top:14px;
+      border-top:1px solid rgba(255,255,255,.10);
+    }
+    .rowCenter{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+    .pill{
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      min-width:220px;
+      text-align:center;
+      font-weight:700;
+    }
+    a{color:var(--mut);text-decoration:none}
+    footer{margin-top:14px;text-align:center;color:var(--mut)}
   </style>
 </head>
 <body>
+  <div class="wrap">
+    <header>
+      <h1>tomorrow maybe</h1>
+      <div class="sub">קביעת תור ליובל - בלי נדר</div>
+    </header>
 
-<h1>tomorrow maybe</h1>
-<p>קביעת תור ליובל</p>
+    <div class="card">
+      <div class="grid">
+        <div>
+          <label>שם מלא</label>
+          <input id="name" type="text" placeholder="שם מלא" autocomplete="name" />
+        </div>
+        <div>
+          <label>בחר תאריך</label>
+          <input id="date" type="date" />
+          <div class="small">שבת לא מופיעות שעות</div>
+        </div>
+      </div>
 
-<input id="username" placeholder="שם מלא">
+      <div class="sectionTitle">בחר שעה</div>
+      <div id="slots" class="slots"></div>
 
-<br><br>
+      <button id="bookBtn" class="btn" disabled>קבע תור</button>
 
-<input type="date" id="date">
+      <div id="msgOk" class="ok" style="display:none"></div>
+      <div id="msgErr" class="err" style="display:none"></div>
 
-<br><br>
+      <div class="myBox">
+        <div class="sectionTitle">התור שלי</div>
+        <div id="myInfo" class="rowCenter"></div>
+        <div style="max-width:420px;margin:10px auto 0;">
+          <button id="cancelMyBtn" class="btn dangerBtn" style="display:none">בטל תור</button>
+        </div>
+      </div>
+    </div>
 
-<button onclick="loadSlots()">טען שעות</button>
-
-<div class="slots" id="slots"></div>
-
-<br>
-
-<button onclick="book()">קבע תור</button>
-
-<hr>
-
-<h3>ביטול תור</h3>
-<button class="red" onclick="cancel()">בטל תור</button>
+    <footer>
+      <div class="small">
+        מסך ניהול - <a href="/admin">/admin</a>
+      </div>
+    </footer>
+  </div>
 
 <script>
-let selectedTime = null;
+  const nameEl = document.getElementById("name");
+  const dateEl = document.getElementById("date");
+  const slotsEl = document.getElementById("slots");
+  const bookBtn = document.getElementById("bookBtn");
+  const msgOk = document.getElementById("msgOk");
+  const msgErr = document.getElementById("msgErr");
+  const myInfo = document.getElementById("myInfo");
+  const cancelMyBtn = document.getElementById("cancelMyBtn");
 
-function loadSlots() {
-  const date = document.getElementById("date").value;
-  fetch(`/api/available?date=${date}`)
-    .then(r => r.json())
-    .then(times => {
-      const div = document.getElementById("slots");
-      div.innerHTML = "";
-      selectedTime = null;
+  let selectedTime = null;
+  let myAppointment = null; // {id, username, date, time}
 
-      times.forEach(t => {
-        const b = document.createElement("button");
-        b.innerText = t;
-        b.onclick = () => {
-          selectedTime = t;
-          document.querySelectorAll(".slots button").forEach(x => x.style.background="#2196f3");
-          b.style.background = "#4caf50";
-        };
-        div.appendChild(b);
-      });
+  function todayISO() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function showErr(text){
+    msgErr.style.display = "block";
+    msgOk.style.display = "none";
+    msgErr.textContent = text;
+  }
+  function showOk(text){
+    msgOk.style.display = "block";
+    msgErr.style.display = "none";
+    msgOk.textContent = text;
+  }
+  function clearMsg(){
+    msgOk.style.display = "none";
+    msgErr.style.display = "none";
+    msgOk.textContent = "";
+    msgErr.textContent = "";
+  }
+
+  function canBook() {
+    const name = nameEl.value.trim();
+    const date = dateEl.value;
+    return name.length >= 2 && !!date && !!selectedTime;
+  }
+
+  function renderSlots(times) {
+    slotsEl.innerHTML = "";
+    selectedTime = null;
+
+    if (!times || times.length === 0) {
+      const div = document.createElement("div");
+      div.className = "small";
+      div.textContent = "אין שעות פנויות בתאריך הזה";
+      slotsEl.appendChild(div);
+      bookBtn.disabled = true;
+      return;
+    }
+
+    times.forEach(t => {
+      const b = document.createElement("button");
+      b.className = "slotBtn";
+      b.textContent = t;
+      b.onclick = () => {
+        [...slotsEl.querySelectorAll(".slotBtn")].forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+        selectedTime = t;
+        bookBtn.disabled = !canBook();
+      };
+      slotsEl.appendChild(b);
     });
-}
 
-function book() {
-  fetch("/api/book", {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({
-      username: username.value,
-      date: date.value,
-      time: selectedTime
-    })
-  })
-  .then(r => r.json())
-  .then(() => alert("התור נקבע"));
-}
+    bookBtn.disabled = !canBook();
+  }
 
-function cancel() {
-  fetch("/api/cancel", {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({
-      username: username.value,
-      date: date.value,
-      time: selectedTime
-    })
-  })
-  .then(r => r.json())
-  .then(() => alert("התור בוטל"));
-}
+  async function loadAvailable() {
+    clearMsg();
+    const date = dateEl.value;
+    if (!date) {
+      renderSlots([]);
+      return;
+    }
+
+    try {
+      const r = await fetch(`/api/available?date=${encodeURIComponent(date)}`);
+      const times = await r.json();
+      renderSlots(times);
+    } catch (e) {
+      renderSlots([]);
+      showErr("בעיה בטעינת שעות");
+    }
+  }
+
+  function renderMyAppointment() {
+    myInfo.innerHTML = "";
+    cancelMyBtn.style.display = "none";
+
+    if (!myAppointment) {
+      const empty = document.createElement("div");
+      empty.className = "small";
+      empty.textContent = "אין תור שמור כרגע";
+      myInfo.appendChild(empty);
+      return;
+    }
+
+    const p = document.createElement("div");
+    p.className = "pill";
+    p.textContent = `${myAppointment.username} | ${myAppointment.date} | ${myAppointment.time}`;
+    myInfo.appendChild(p);
+
+    cancelMyBtn.style.display = "block";
+  }
+
+  async function loadMyAppointments() {
+    const name = nameEl.value.trim();
+    if (!name) {
+      myAppointment = null;
+      renderMyAppointment();
+      return;
+    }
+
+    try {
+      const r = await fetch(`/api/my?username=${encodeURIComponent(name)}`);
+      const rows = await r.json();
+      // ניקח את התור הקרוב ביותר (הראשון לפי ORDER BY)
+      myAppointment = Array.isArray(rows) && rows.length ? rows[0] : null;
+      renderMyAppointment();
+    } catch (e) {
+      myAppointment = null;
+      renderMyAppointment();
+    }
+  }
+
+  // Events
+  nameEl.addEventListener("input", async () => {
+    bookBtn.disabled = !canBook();
+    localStorage.setItem("tm_name", nameEl.value.trim());
+    await loadMyAppointments();
+  });
+
+  dateEl.addEventListener("change", async () => {
+    await loadAvailable();
+  });
+
+  bookBtn.addEventListener("click", async () => {
+    clearMsg();
+    const username = nameEl.value.trim();
+    const date = dateEl.value;
+
+    if (!username || !date || !selectedTime) {
+      showErr("חסר שם או תאריך או שעה");
+      return;
+    }
+
+    try {
+      const r = await fetch("/api/book", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ username, date, time: selectedTime })
+      });
+
+      const data = await r.json().catch(() => ({}));
+
+      if (!r.ok) {
+        if (data && data.error === "slot_taken") return showErr("השעה הזו נתפסה, תבחר שעה אחרת");
+        if (data && data.error === "closed_day") return showErr("שבת סגור");
+        return showErr("לא הצלחתי לקבוע תור");
+      }
+
+      showOk("התור נקבע");
+      await loadMyAppointments();
+      await loadAvailable();
+    } catch (e) {
+      showErr("בעיה בקביעת התור");
+    }
+  });
+
+  cancelMyBtn.addEventListener("click", async () => {
+    clearMsg();
+    if (!myAppointment) return;
+
+    const username = nameEl.value.trim();
+    if (!username) return;
+
+    try {
+      const r = await fetch(`/api/my/${myAppointment.id}?username=${encodeURIComponent(username)}`, {
+        method: "DELETE"
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) return showErr("לא הצלחתי לבטל");
+
+      showOk("התור בוטל");
+      await loadMyAppointments();
+      await loadAvailable();
+    } catch (e) {
+      showErr("בעיה בביטול התור");
+    }
+  });
+
+  // Init
+  (async function init(){
+    dateEl.value = todayISO();
+
+    const savedName = localStorage.getItem("tm_name") || "";
+    if (savedName) nameEl.value = savedName;
+
+    await loadAvailable();
+    await loadMyAppointments();
+    bookBtn.disabled = !canBook();
+  })();
 </script>
-
 </body>
 </html>

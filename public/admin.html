@@ -1,85 +1,229 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="he" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <title>ניהול – יובל</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>מסך ניהול - יובל</title>
   <style>
-    body {
-      background:#0d0d2b;
-      color:white;
-      font-family:Arial;
-      padding:20px;
+    :root{
+      --bg:#070814; --txt:#e9ecff; --mut:#aab1ff;
+      --line:rgba(122,162,255,.25);
+      --shadow: 0 18px 60px rgba(0,0,0,.45);
+      --acc:#2d9cff;
+      --danger:#e74c3c;
+      --ok:#2ecc71;
     }
-    .card {
-      background:#1c1c3c;
-      padding:15px;
-      margin:10px 0;
-      border-radius:8px;
+    html,body{height:100%;}
+    body{
+      margin:0;
+      background:radial-gradient(900px 700px at 20% 10%, rgba(122,162,255,.16), transparent),
+                 radial-gradient(900px 700px at 80% 0%, rgba(45,156,255,.12), transparent),
+                 var(--bg);
+      color:var(--txt);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
     }
-    button {
-      padding:8px;
-      margin:4px;
-      border:none;
-      border-radius:5px;
+    .wrap{max-width:1100px;margin:0 auto;padding:28px 14px 60px;}
+    h1{margin:0 0 10px;text-align:right;font-size:40px;}
+    .sub{color:var(--mut);margin-bottom:14px}
+    .list{display:flex;flex-direction:column;gap:12px;}
+    .item{
+      background:rgba(15,18,48,.65);
+      border:1px solid var(--line);
+      border-radius:22px;
+      box-shadow:var(--shadow);
+      padding:14px;
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .left{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .name{font-weight:900;font-size:18px;min-width:120px}
+    .meta{color:var(--mut);font-weight:700}
+    input[type="date"], input[type="time"]{
+      background:rgba(255,255,255,.06);
+      color:var(--txt);
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:12px;
+      padding:10px 10px;
+      font-size:14px;
+      outline:none;
+    }
+    .btn{
+      border:0;
       cursor:pointer;
+      border-radius:12px;
+      padding:10px 14px;
+      font-weight:900;
+      color:white;
+      background:var(--acc);
     }
-    .red { background:#e53935; color:white; }
-    .green { background:#4caf50; color:white; }
+    .btnDanger{background:var(--danger);}
+    .btnOk{background:var(--ok);}
+    .topRow{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+    a{color:var(--mut);text-decoration:none}
+    .msg{margin-top:10px;font-weight:800}
+    .msg.ok{color:rgba(46, 204, 113,.95)}
+    .msg.err{color:rgba(231, 76, 60,.95)}
+    .empty{
+      margin-top:10px;
+      padding:16px;
+      border:1px dashed rgba(255,255,255,.18);
+      border-radius:18px;
+      color:var(--mut);
+      text-align:center;
+    }
   </style>
 </head>
 <body>
+  <div class="wrap">
+    <div class="topRow">
+      <div>
+        <h1>מסך ניהול - יובל</h1>
+        <div class="sub">שינוי יום ושעה + ביטול</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button id="refreshBtn" class="btn">רענן</button>
+        <a href="/" class="sub">חזרה לקביעת תור</a>
+      </div>
+    </div>
 
-<h1>מסך ניהול – יובל</h1>
-
-<div id="list"></div>
+    <div id="msg" class="msg" style="display:none"></div>
+    <div id="list" class="list"></div>
+  </div>
 
 <script>
-function load() {
-  fetch("/api/admin/appointments")
-    .then(r => r.json())
-    .then(rows => {
-      const div = document.getElementById("list");
-      div.innerHTML = "";
+  const listEl = document.getElementById("list");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const msgEl = document.getElementById("msg");
 
-      rows.forEach(a => {
-        const c = document.createElement("div");
-        c.className = "card";
-        c.innerHTML = `
-          <b>${a.username}</b><br>
-          ${a.date} | ${a.time}<br><br>
+  function showMsg(text, type){
+    msgEl.style.display = "block";
+    msgEl.textContent = text;
+    msgEl.className = "msg " + (type || "");
+    setTimeout(() => {
+      msgEl.style.display = "none";
+      msgEl.textContent = "";
+    }, 1800);
+  }
 
-          <input type="date" id="d${a.id}" value="${a.date}">
-          <input type="time" id="t${a.id}" value="${a.time}">
-          <br>
+  async function load() {
+    listEl.innerHTML = "";
+    try{
+      const r = await fetch("/api/admin/appointments");
+      const rows = await r.json();
 
-          <button class="green" onclick="update(${a.id})">שנה</button>
-          <button class="red" onclick="remove(${a.id})">בטל</button>
-        `;
-        div.appendChild(c);
+      if (!Array.isArray(rows) || rows.length === 0) {
+        const e = document.createElement("div");
+        e.className = "empty";
+        e.textContent = "אין תורים";
+        listEl.appendChild(e);
+        return;
+      }
+
+      rows.forEach(row => {
+        const item = document.createElement("div");
+        item.className = "item";
+
+        const left = document.createElement("div");
+        left.className = "left";
+
+        const name = document.createElement("div");
+        name.className = "name";
+        name.textContent = row.username || "ללא שם";
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = `${row.time} | ${row.date}`;
+
+        left.appendChild(name);
+        left.appendChild(meta);
+
+        const controls = document.createElement("div");
+        controls.className = "left";
+
+        const dateInput = document.createElement("input");
+        dateInput.type = "date";
+        dateInput.value = row.date;
+
+        const timeInput = document.createElement("input");
+        timeInput.type = "time";
+        timeInput.step = "1800";
+        timeInput.value = row.time;
+
+        const saveBtn = document.createElement("button");
+        saveBtn.className = "btn btnOk";
+        saveBtn.textContent = "שנה";
+        saveBtn.onclick = async () => {
+          try{
+            const rr = await fetch(`/api/admin/appointments/${row.id}`, {
+              method: "PUT",
+              headers: {"Content-Type":"application/json"},
+              body: JSON.stringify({ date: dateInput.value, time: timeInput.value })
+            });
+            const data = await rr.json().catch(() => ({}));
+            if (!rr.ok) {
+              if (data && data.error === "slot_taken") return showMsg("הסלוט תפוס, תבחר משהו אחר", "err");
+              if (data && data.error === "closed_day") return showMsg("שבת סגור", "err");
+              if (data && data.error === "time_not_allowed") return showMsg("השעה לא חוקית ליום הזה", "err");
+              return showMsg("לא הצלחתי לשנות", "err");
+            }
+            showMsg("עודכן", "ok");
+            await load();
+          }catch(e){
+            showMsg("בעיה בעדכון", "err");
+          }
+        };
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn btnDanger";
+        delBtn.textContent = "בטל";
+        delBtn.onclick = async () => {
+          try{
+            const rr = await fetch(`/api/admin/appointments/${row.id}`, { method: "DELETE" });
+            if (!rr.ok) return showMsg("לא הצלחתי לבטל", "err");
+            showMsg("בוטל", "ok");
+            await load();
+          }catch(e){
+            showMsg("בעיה בביטול", "err");
+          }
+        };
+
+        controls.appendChild(timeInput);
+        controls.appendChild(dateInput);
+        controls.appendChild(delBtn);
+        controls.appendChild(saveBtn);
+
+        item.appendChild(left);
+        item.appendChild(controls);
+
+        listEl.appendChild(item);
       });
-    });
-}
 
-function remove(id) {
-  fetch(`/api/admin/appointments/${id}`, { method:"DELETE" })
-    .then(() => load());
-}
+    }catch(e){
+      const ebox = document.createElement("div");
+      ebox.className = "empty";
+      ebox.textContent = "בעיה בטעינת תורים";
+      listEl.appendChild(ebox);
+    }
+  }
 
-function update(id) {
-  fetch(`/api/admin/appointments/${id}`, {
-    method:"PUT",
-    headers:{ "Content-Type":"application/json" },
-    body:JSON.stringify({
-      date: document.getElementById("d"+id).value,
-      time: document.getElementById("t"+id).value
-    })
-  })
-  .then(() => load());
-}
+  refreshBtn.addEventListener("click", load);
 
-load();
+  load();
 </script>
-
 </body>
 </html>
